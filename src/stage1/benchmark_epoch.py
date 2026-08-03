@@ -13,13 +13,13 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--data", required=True)
     ap.add_argument("--model", default="yolov8n.pt")
-    ap.add_argument("--imgsz", type=int, default=640)
-    ap.add_argument("--batch", type=int, default=64)
+    ap.add_argument("--imgsz", type=int, default=416)
+    ap.add_argument("--batch", type=int, default=128)
     ap.add_argument("--epochs", type=int, default=3, help="time this many, report the mean")
     args = ap.parse_args()
 
     if not torch.cuda.is_available():
-        raise SystemExit("No CUDA device.")
+        raise SystemExit("No CUDA device. This script is A100-only by design.")
     print(f"GPU: {torch.cuda.get_device_name(0)}  "
           f"({torch.cuda.get_device_properties(0).total_memory / 1e9:.1f} GB)")
 

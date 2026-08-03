@@ -6,7 +6,7 @@ Trials are short (default 10 epochs)
 IMPORTANT: the sampler is seeded. Without seeding the TPESampler the search is
 not reproducible even if torch/numpy are seeded.
 
-NOTE: this optimises against the VALIDATION split. That is exactly why
+LEAKAGE NOTE: this optimises against the VALIDATION split. That is exactly why
 the Kaggle test split is held out and touched only once, in eval_stage1.py.
 
     python -m src.stage1.tune_stage1 --data data/prepared/rgb/data1.yaml --trials 15
@@ -29,10 +29,12 @@ def main():
     ap.add_argument("--model", default="yolov8n.pt")
     ap.add_argument("--trials", type=int, default=15)
     ap.add_argument("--epochs", type=int, default=10)
-    ap.add_argument("--imgsz", type=int, default=640)
-    ap.add_argument("--batch", type=int, default=64)
+    ap.add_argument("--imgsz", type=int, default=416)
+    ap.add_argument("--batch", type=int, default=128)
     ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--out", default="configs/stage1_best.json")
+    ap.add_argument("--lr-min", type=float, default=1e-3)
+    ap.add_argument("--lr-max", type=float, default=1e-1)
     args = ap.parse_args()
 
     set_all_seeds(args.seed)
@@ -40,7 +42,10 @@ def main():
     from ultralytics import YOLO
 
     def objective(trial):
-        lr0 = trial.suggest_float("lr0", 1e-4, 5e-2, log=True)
+        # Range shifted up for batch=128. Under the linear scaling rule the
+        # optimum moves roughly proportionally with batch size, so the 1e-4..5e-2
+        # window that suited batch=64 would put the optimum at its ceiling.
+        lr0 = trial.suggest_float("lr0", args.lr_min, args.lr_max, log=True)
         model = YOLO(args.model)
         try:
             res = model.train(
@@ -72,10 +77,16 @@ def main():
         "imgsz": args.imgsz,
         "batch": args.batch,
         "sampler_seed": args.seed,
+        "lr_search_range": [args.lr_min, args.lr_max],
         "fixed": {"optimizer": "SGD", "momentum": 0.937, "cos_lr": True},
     }
     Path(args.out).parent.mkdir(parents=True, exist_ok=True)
     Path(args.out).write_text(json.dumps(best, indent=2))
+    lr = study.best_params["lr0"]
+    if lr < args.lr_min * 1.5 or lr > args.lr_max / 1.5:
+        print(f"\n!! Best lr0={lr:.5f} sits at the edge of the search range "
+              f"[{args.lr_min}, {args.lr_max}]. The optimum is probably outside it. "
+              f"Widen with --lr-min/--lr-max and re-run before trusting this.")
     print("\nBEST:", json.dumps(best["best_params"]), f"-> {args.out}")
 
 

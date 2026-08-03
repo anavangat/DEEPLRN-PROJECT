@@ -9,7 +9,8 @@ Two crop modes:
                Used to EVALUATE, so reported numbers reflect the real end-to-end
                pipeline including detector mistakes.
 
-Train on gt/train, report on pred/test.
+Train on gt/train, report on pred/test. This split is a deliberate design
+choice and must be stated in the paper.
 
 Output:
     crops/<colorspace>/<mode>/<split>/<NN_Name>/<stem>.jpg     (128x128)
@@ -54,7 +55,7 @@ def save_crop(img: Image.Image, box, dst: Path, size: int):
 
 
 def export_split(model, data_root: Path, split: str, mode: str, out_root: Path,
-                 pad: float, size: int, conf: float, batch: int):
+                 pad: float, size: int, conf: float, batch: int, imgsz: int):
     img_dir = data_root / "det36" / "images" / split
     lbl_dir = data_root / "det36" / "labels" / split
     images = sorted(p for p in img_dir.iterdir() if p.suffix.lower() in {".jpg", ".jpeg", ".png"})
@@ -104,8 +105,11 @@ def export_split(model, data_root: Path, split: str, mode: str, out_root: Path,
     else:
         for i in range(0, len(images), batch):
             chunk = images[i:i + batch]
+            # imgsz MUST match the value the detector was trained at. Ultralytics'
+            # predict() defaults to 640 regardless of the checkpoint, so passing it
+            # explicitly is not optional -- a mismatch silently degrades every box.
             results = model.predict([str(p) for p in chunk], conf=conf, verbose=False,
-                                    device=0, max_det=10)
+                                    device=0, max_det=10, imgsz=imgsz)
             for ip, res in zip(chunk, results):
                 b = res.boxes
                 if b is None or len(b) == 0:
@@ -141,22 +145,44 @@ def main():
     ap.add_argument("--pad", type=float, default=0.10)
     ap.add_argument("--size", type=int, default=128)
     ap.add_argument("--conf", type=float, default=0.25)
-    ap.add_argument("--batch", type=int, default=64)
+    ap.add_argument("--batch", type=int, default=128)
+    ap.add_argument("--imgsz", type=int, default=None,
+                    help="detector inference size; defaults to the checkpoint's "
+                         "training imgsz, which is almost always what you want")
     args = ap.parse_args()
 
-    model = None
+    model, imgsz = None, args.imgsz
     if args.mode == "pred":
         if not args.weights:
             raise SystemExit("--mode pred requires --weights")
         from ultralytics import YOLO
         model = YOLO(args.weights)
 
+        trained_at = None
+        try:
+            trained_at = int(model.ckpt["train_args"]["imgsz"])
+        except Exception:
+            pass
+        if imgsz is None:
+            if trained_at is None:
+                raise SystemExit(
+                    "Could not read the training imgsz from the checkpoint. "
+                    "Pass --imgsz explicitly, matching what you trained at.")
+            imgsz = trained_at
+            print(f"  imgsz {imgsz} (auto-detected from checkpoint)")
+        elif trained_at is not None and trained_at != imgsz:
+            print(f"  !! WARNING: detector was trained at imgsz={trained_at} but you "
+                  f"passed --imgsz {imgsz}. Boxes will be worse. Ctrl-C now unless "
+                  f"this mismatch is deliberate.")
+        else:
+            print(f"  imgsz {imgsz}")
+
     out_root = Path(args.out) / args.colorspace / args.mode
     out_root.mkdir(parents=True, exist_ok=True)
     print(f"Exporting {args.mode} crops for {args.colorspace} -> {out_root}")
 
     summary = [export_split(model, Path(args.data), s, args.mode, out_root,
-                            args.pad, args.size, args.conf, args.batch)
+                            args.pad, args.size, args.conf, args.batch, imgsz or 640)
                for s in args.splits]
 
     with (out_root / "export_summary.csv").open("w", newline="") as fh:

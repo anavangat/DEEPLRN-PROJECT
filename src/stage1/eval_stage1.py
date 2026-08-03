@@ -1,7 +1,8 @@
-"""Stage 1 evaluation: computes test mAP with Ultralytics, 
-then folds in mean IoU and detection miss rate from the `pred` 
-crop manifest produced by export_crops.py. Updates the run's 
-metrics.json in place.
+"""The one time the test split is opened for Stage 1.
+
+Computes test mAP with Ultralytics, then folds in mean IoU and detection miss
+rate from the `pred` crop manifest produced by export_crops.py. Updates the
+run's metrics.json in place.
 
     python -m src.stage1.eval_stage1 --run runs/stage1_rgb_seed0 \
         --data data/prepared/rgb/data1.yaml --crops data/crops/rgb/pred
@@ -33,17 +34,23 @@ def main():
     ap.add_argument("--data", required=True)
     ap.add_argument("--crops", help="data/crops/<cs>/pred")
     ap.add_argument("--split", default="test")
-    ap.add_argument("--imgsz", type=int, default=640)
+    ap.add_argument("--imgsz", type=int, default=None,
+                    help="defaults to the imgsz recorded in the run's metrics.json")
     args = ap.parse_args()
 
     run = Path(args.run)
     mpath = run / "metrics.json"
     metrics = json.loads(mpath.read_text())
 
+    imgsz = args.imgsz or metrics.get("imgsz")
+    if imgsz is None:
+        raise SystemExit("No imgsz in metrics.json; pass --imgsz explicitly.")
+    print(f"evaluating at imgsz={imgsz}")
+
     from ultralytics import YOLO
 
     model = YOLO(run / "weights.pt")
-    res = model.val(data=args.data, split=args.split, imgsz=args.imgsz,
+    res = model.val(data=args.data, split=args.split, imgsz=imgsz,
                     device=0, verbose=False, plots=False)
 
     metrics["split"] = args.split
