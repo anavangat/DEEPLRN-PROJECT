@@ -66,9 +66,9 @@ def env_stamp() -> dict:
     try:
         import torch
 
-        stamp["torch"] = torch.__version__
-        stamp["cuda"] = torch.version.cuda
-        stamp["gpu"] = torch.cuda.get_device_name(0) if torch.cuda.is_available() else "cpu"
+        stamp["torch"] = str(torch.__version__)
+        stamp["cuda"] = str(torch.version.cuda) if torch.version.cuda else None
+        stamp["gpu"] = str(torch.cuda.get_device_name(0)) if torch.cuda.is_available() else "cpu"
     except Exception:
         pass
     return stamp
@@ -84,8 +84,7 @@ def write_run(out_dir, config: dict, metrics: dict, predictions, history=None,
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
 
-    cfg = dict(config)
-    cfg["_env"] = env_stamp()
+    cfg = json.loads(json.dumps(dict(config) | {"_env": env_stamp()}, default=str))
     (out / "config.yaml").write_text(yaml.safe_dump(cfg, sort_keys=False))
 
     (out / "metrics.json").write_text(json.dumps(metrics, indent=2, sort_keys=True))
