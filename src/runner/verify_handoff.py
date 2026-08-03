@@ -13,8 +13,15 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from src.common.classes import FOLDER_NAMES
 from src.common.contract import validate_run
 
+import re
+from src.common.contract import COLORSPACES, METHODS, validate_run
+
 SPLITS = ["train", "val", "test"]
 
+RUN_RE = re.compile(
+    r"^(?:" + "|".join(sorted(METHODS)) + r")_"
+    r"(?:" + "|".join(sorted(COLORSPACES)) + r")_seed\d+$"
+)
 
 def check_crops(root: Path, colorspaces, modes):
     problems = []
@@ -49,7 +56,7 @@ def check_crops(root: Path, colorspaces, modes):
 
 def check_runs(root: Path):
     problems = []
-    runs = sorted(p for p in root.iterdir() if p.is_dir() and not p.name.startswith("_"))
+    runs = sorted(p for p in root.iterdir() if p.is_dir() and RUN_RE.match(p.name))
     if not runs:
         problems.append(f"no run directories under {root}")
     for r in runs:

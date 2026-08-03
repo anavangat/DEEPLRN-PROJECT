@@ -51,7 +51,8 @@ def main():
 
     model = YOLO(run / "weights.pt")
     res = model.val(data=args.data, split=args.split, imgsz=imgsz,
-                    device=0, verbose=False, plots=False)
+                device=0, verbose=False, plots=False,
+                project="runs/_ultralytics", name=f"{run.name}_val", exist_ok=True)
 
     metrics["split"] = args.split
     metrics["map50"] = float(res.box.map50)
