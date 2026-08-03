@@ -58,8 +58,22 @@ def make_dataset(crop_root, mode, split, size=128, train=False, augment=True):
             f"{root} not found. Ask Person 1 for the crop archive, or check that "
             f"crop_root points at data/crops/<colorspace> (not the parent)."
         )
-    ds = ImageFolder(str(root), transform=build_transforms(size, train, augment))
+    tf = build_transforms(size, train, augment)
+    try:
+        # export_crops pre-creates all 36 class dirs so ordering can never drift.
+        # A class that is empty in this split would otherwise make ImageFolder
+        # raise (torchvision >=0.19) or silently renumber the classes (<0.19).
+        ds = ImageFolder(str(root), transform=tf, allow_empty=True)
+    except TypeError:
+        ds = ImageFolder(str(root), transform=tf)
     verify_imagefolder(ds)  # hard fail on any ordering drift
+
+    import collections
+    counts = collections.Counter(y for _, y in ds.samples)
+    empty = [FOLDER_NAMES[i] for i in range(len(FOLDER_NAMES)) if counts.get(i, 0) == 0]
+    if empty:
+        print(f"WARNING {root}: {len(empty)} class(es) have no images: {empty}. "
+              f"Per-class F1 will be undefined for these -- tell Person 1.")
     return ds
 
 
