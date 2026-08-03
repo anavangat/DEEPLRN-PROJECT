@@ -1,0 +1,16 @@
+# NOTE: Colab already has torch, do not reinstall it there.
+torch>=2.2,<2.9
+torchvision>=0.17
+ultralytics==8.3.40
+optuna==4.1.0
+scikit-learn>=1.4
+opencv-python-headless>=4.9
+pillow>=10.2
+pandas>=2.2
+numpy>=1.26
+pyyaml>=6.0
+matplotlib>=3.8
+seaborn>=0.13
+scipy>=1.12          # Friedman test
+scikit-posthocs>=0.9 # Nemenyi post-hoc
+tqdm>=4.66
