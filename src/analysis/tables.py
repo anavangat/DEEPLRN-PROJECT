@@ -62,6 +62,23 @@ def stage1_table(df):
         "Miss rate": f"{d['detection_miss_rate'].mean():.4f}",
     }])
 
+def colorspace_table(df, methods=("twostage",)):
+    """Macro-F1 by colorspace, plus the drop relative to RGB."""
+    rows = []
+    for m in methods:
+        d = df[df["method"] == m]
+        if d.empty:
+            continue
+        base = d[d["colorspace"] == "rgb"]["macro_f1"].mean()
+        row = {"Method": PRETTY.get(m, m)}
+        for cs, nice in (("rgb", "RGB"), ("hsv", "HSV"), ("gray", "Grayscale")):
+            g = d[d["colorspace"] == cs]
+            row[nice] = ms(g["macro_f1"]) if len(g) else "—"
+            if cs != "rgb" and len(g):
+                row[f"Δ {nice}"] = f"{g['macro_f1'].mean() - base:+.3f}"
+        rows.append(row)
+    return pd.DataFrame(rows)
+
 
 def emit(table, name, outdir="tables"):
     Path(outdir).mkdir(exist_ok=True)
@@ -82,20 +99,3 @@ if __name__ == "__main__":
     s1 = stage1_table(df)
     if s1 is not None:
         emit(s1, "stage1_detection")
-
-def colorspace_table(df, methods=("twostage",)):
-    """Macro-F1 by colorspace, plus the drop relative to RGB."""
-    rows = []
-    for m in methods:
-        d = df[df["method"] == m]
-        if d.empty:
-            continue
-        base = d[d["colorspace"] == "rgb"]["macro_f1"].mean()
-        row = {"Method": PRETTY.get(m, m)}
-        for cs, nice in (("rgb", "RGB"), ("hsv", "HSV"), ("gray", "Grayscale")):
-            g = d[d["colorspace"] == cs]
-            row[nice] = ms(g["macro_f1"]) if len(g) else "—"
-            if cs != "rgb" and len(g):
-                row[f"Δ {nice}"] = f"{g['macro_f1'].mean() - base:+.3f}"
-        rows.append(row)
-    return pd.DataFrame(rows)
