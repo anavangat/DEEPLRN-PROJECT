@@ -50,4 +50,11 @@ class ASLCNN(nn.Module):
 def build_model(arch="cnn", num_classes=36, dropout=0.5):
     if arch == "cnn":
         return ASLCNN(num_classes=num_classes, dropout=dropout)
+    if arch == "effnet":
+        import torchvision
+        m = torchvision.models.efficientnet_b0(
+            weights=torchvision.models.EfficientNet_B0_Weights.IMAGENET1K_V1)
+        in_f = m.classifier[1].in_features                 # 1280
+        m.classifier = nn.Sequential(nn.Dropout(dropout), nn.Linear(in_f, num_classes))
+        return m
     raise ValueError(f"unknown arch {arch!r}")
